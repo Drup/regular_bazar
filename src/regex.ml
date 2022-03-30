@@ -8,6 +8,7 @@ module rec Internal : sig
     | Alt of Set.t
     | Inter of Set.t
     | Rep of int * int option * t
+    | Shuffle of t * t
   include CCSet.OrderedType with type t := t
 end = struct
   type t =
@@ -17,6 +18,7 @@ end = struct
     | Alt of Set.t
     | Inter of Set.t
     | Rep of int * int option * t
+    | Shuffle of t * t
   [@@deriving ord] 
 end
 and Set : CCSet.S with type elt = Internal.t = CCSet.Make (Internal)
@@ -87,6 +89,8 @@ let inter l =
   else
     Inter s
 
+let shuffle e1 e2 = Shuffle (e1, e2)
+
 let rec rep i j x = match i, j, x with
   | 0, Some 0, _ -> Epsilon
   | 1, Some 1, x -> x
@@ -105,4 +109,5 @@ module Infix = struct
   let ( ||| ) x y = alt [ x ; y ]
   let ( &&& ) x y = inter [ x ;  y ]
   let ( -.- ) x y = concat [ x ; y ]
+  let ( %%% ) x y = shuffle x y
 end

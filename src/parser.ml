@@ -18,10 +18,11 @@ let parse s =
   and regexp' left =
     if accept '|' then regexp' (left ||| (branch ()))
     else if accept '&' then regexp' (left &&& branch ())
+    else if accept '%' then regexp' (left %%% branch ())
     else left
   and branch () = branch' []
   and branch' left =
-    if eos () || test '|' || test '&' || test ')' then Regex.concat (List.rev left)
+    if eos () || test '|' || test '&' || test '%' || test ')' then Regex.concat (List.rev left)
     else branch' (piece () :: left)
   and piece () =
     let r = atom () in
@@ -65,7 +66,7 @@ let parse s =
     if accept '\\' then begin
       if eos () then raise Parse_error;
       match get () with
-        '|' | '&' | '(' | ')' | '*' | '+' | '?'
+        '|' | '&' | '%' | '(' | ')' | '*' | '+' | '?'
       | '[' | '.' | '^' | '$' | '{' | '\\' as c -> Regex.char c
       |                 _                       -> raise Parse_error
     end else begin

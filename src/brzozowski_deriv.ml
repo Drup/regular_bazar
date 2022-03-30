@@ -11,10 +11,9 @@
 
 (** Derivatives *)
 
-module AMap = Atom.Map
 open Regex.Infix
 
-type deriv = Regex.t AMap.t
+type deriv = Regex.t Atom.Map.t
 
 let rec has_epsilon = function
   | Regex.Epsilon -> true
@@ -27,41 +26,48 @@ let rec has_epsilon = function
   | Rep (_, _, _) -> false
   | Inter el ->
     Regex.Set.for_all has_epsilon el
+  | Shuffle (e1, e2) -> has_epsilon e1 && has_epsilon e2
 
 let suffix (l : deriv) re : deriv =
   let f re_c = Regex.concat [re_c; re] in
-  AMap.map f l
+  Atom.Map.map f l
 
 let union : deriv -> deriv -> deriv =
-  AMap.union
+  Atom.Map.union
     (fun _c re1 re2 -> Some (re1 ||| re2))
 
 let inter : deriv -> deriv -> deriv =
-  AMap.merge @@ fun _c re1 re2 -> match re1, re2 with
+  Atom.Map.merge @@ fun _c re1 re2 -> match re1, re2 with
   | Some re1, Some re2 -> Some (re1 &&& re2)
   | _, _ -> None
 
-let rec heads = function
-  | Regex.Epsilon -> AMap.empty
-  | Atom a -> AMap.singleton a Regex.epsilon
+let rec deriv = function
+  | Regex.Epsilon -> Atom.Map.empty
+  | Atom a -> Atom.Map.singleton a Regex.epsilon
   | Concat el ->
     let rec aux = function
-      | [] -> AMap.empty
+      | [] -> Atom.Map.empty
       | e :: t ->
-        let h = suffix (heads e) (Regex.concat t) in
+        let h = suffix (deriv e) (Regex.concat t) in
         if has_epsilon e
         then union h (aux t)
         else h
     in
     aux el
   | Alt el ->
-    Regex.Set.fold (fun e s -> union s (heads e)) el AMap.empty
+    Regex.Set.fold (fun e s -> union s (deriv e)) el Atom.Map.empty
   | Rep (i, None, e) ->
-    suffix (heads e) (Regex.rep (max 0 (i-1)) None e)
+    suffix (deriv e) (Regex.rep (max 0 (i-1)) None e)
   | Rep (i, Some j, e) ->
-    suffix (heads e) (Regex.rep (max 0 (i-1)) (Some (max 0 (j-1))) e)
+    suffix (deriv e) (Regex.rep (max 0 (i-1)) (Some (max 0 (j-1))) e)
   | Inter el ->
-    Regex.Set.fold (fun e s -> inter s (heads e)) el AMap.empty
+    let e0 = Regex.Set.choose el in
+    let el = Regex.Set.remove e0 el in
+    Regex.Set.fold (fun e s -> inter s (deriv e)) el (deriv e0)
+  | Shuffle (e1, e2) ->
+    let m1 = Atom.Map.map (fun r -> r %%% e2) (deriv e1) in
+    let m2 = Atom.Map.map (fun r -> e1 %%% r) (deriv e2) in
+    union m1 m2
 
 (** DFA construction *)
 
@@ -87,8 +93,8 @@ let rec goto st0 c re a =
     explore a (st, re)
 
 and explore a (st, re) =
-  let l = heads re in
-  let a = AMap.fold (goto st) l a in
+  let l = deriv re in
+  let a = Atom.Map.fold (goto st) l a in
   a
 
 let make re =
@@ -105,6 +111,13 @@ let make re =
       Dfa.StateSet.empty
   in
   { a.dfa with final }
+
+
+let test re =
+  let re = Parser.parse re in
+  let a = make re in
+  Fmt.epr "Automaton:@.%a" Dfa.pp a;
+  a
 
 
 (*
