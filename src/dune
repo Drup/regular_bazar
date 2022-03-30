@@ -1,0 +1,6 @@
+(library
+ (name regular_bazar)
+ (package regular_bazar)
+ (libraries containers iter bitv oseq fmt)
+ (preprocess (pps ppx_deriving.ord))
+)
