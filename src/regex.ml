@@ -24,7 +24,8 @@ end
 and Set : CCSet.S with type elt = Internal.t = CCSet.Make (Internal)
 
 include Internal
-module Map = Map.Make(Internal)
+module Map = CCMap.Make(Internal)
+module SetSet = CCSet.Make(Set)
 
 let equal x y = compare x y = 0
 
@@ -49,7 +50,7 @@ and pp_with_paren fmt x = match x with
 and pp_set ~sep fmt res =
   Fmt.iter ~sep Set.iter pp_with_paren fmt res
 
-let to_string = Fmt.to_to_string pp
+let to_string = Fmt.str "@[%a@]" pp
 
 (** Combinators *)
 

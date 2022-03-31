@@ -1,4 +1,4 @@
-(** Deterministic Finite Automatons *)
+(** Non-Deterministic Finite Automatons without ε-transitions *)
 
 (* Partially stolen from https://github.com/yallop/ocaml-re-nfa *)
 
@@ -12,7 +12,7 @@ type t = {
   transitions : transition StateMap.t ;
   final : StateSet.t ;
 }
-and transition = State.t Atom.Map.t
+and transition = StateSet.t Atom.Map.t
 
 let add_state a s = { a with states = StateSet.add s a.states }
 let new_state a name =
@@ -23,7 +23,11 @@ let add_transition a st (c,st') =
   let transitions =
     StateMap.update st (fun x ->
         let t = CCOption.get_or x ~default:Atom.Map.empty in
-        Some (Atom.Map.add c st' t))
+        let f = function
+          | None -> Some (StateSet.singleton st')
+          | Some sts -> Some (StateSet.add st' sts)
+        in
+        Some (Atom.Map.update c f t))
       a.transitions
   in
   { a with transitions }
@@ -45,7 +49,7 @@ let as_enfa { states ; initial ; transitions ; final } =
     |> StateMap.map (fun t ->
         t
         |> Atom.Map.to_seq
-        |> Seq.map (fun (c, x) -> (Atom.Eps.A c, StateSet.singleton x))
+        |> Seq.map (fun (c, x) -> (Atom.Eps.A c, x))
         |> Atom.EpsMap.of_seq
       )
   in    
@@ -55,4 +59,4 @@ let pp ppf a =
   Enfa.pp ppf (as_enfa a)
 [@@ocaml.toplevel_printer]
 
-let dot dfa = Enfa.Dot.open_digraph @@ Enfa.Dot.digraph @@ as_enfa dfa
+let dot a = Enfa.Dot.open_digraph @@ Enfa.Dot.digraph @@ as_enfa a
