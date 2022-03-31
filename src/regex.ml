@@ -26,8 +26,32 @@ and Set : CCSet.S with type elt = Internal.t = CCSet.Make (Internal)
 include Internal
 module Map = Map.Make(Internal)
 
-
 let equal x y = compare x y = 0
+
+(** Printers *)
+
+let rec pp fmt x = match x with
+  | Epsilon -> Fmt.pf fmt "ε"
+  | Atom a -> Atom.pp fmt a
+  | Concat l -> Fmt.list ~sep:Fmt.nop pp_with_paren fmt l
+  | Alt res -> pp_set ~sep:(Fmt.any "|@,") fmt res
+  | Inter res -> pp_set ~sep:(Fmt.any "&@,") fmt res
+  | Rep (0, None, re) -> Fmt.pf fmt "%a*" pp_with_paren re
+  | Rep (1, None, re) -> Fmt.pf fmt "%a+" pp_with_paren re
+  | Rep (low, None, re) -> Fmt.pf fmt "%a{%i,}" pp_with_paren re low
+  | Rep (low, Some high, re) -> Fmt.pf fmt "%a{%i,%i}" pp_with_paren re low high
+  | Shuffle (re, re') -> Fmt.pf fmt "%a%%@,%a" pp_with_paren re pp_with_paren re'
+
+and pp_with_paren fmt x = match x with
+  | Epsilon | Atom _ | Rep _ -> pp fmt x
+  | _ -> Fmt.parens pp fmt x
+
+and pp_set ~sep fmt res =
+  Fmt.iter ~sep Set.iter pp_with_paren fmt res
+
+let to_string = Fmt.to_to_string pp
+
+(** Combinators *)
 
 let epsilon = Epsilon
 let void = Alt Set.empty

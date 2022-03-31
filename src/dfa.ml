@@ -5,19 +5,21 @@
 module State : sig
   type t
   val pp : t Fmt.t
-  val gen : unit -> t
+  val gen : string -> t
   val compare : t -> t -> int
   val id : t -> int
+  val name : t -> string
 end = struct
-  type t = int
-  let pp fmt x = Fmt.pf fmt "'%i" x
+  type t = { id : int ; name : string }
+  let pp fmt x = Fmt.pf fmt "%s/%i" x.name x.id
   let gen =
     let r = ref 0 in
-    fun () ->
+    fun name ->
       incr r ;
-      !r
-  let compare = CCInt.compare
-  let id x = x
+      { id = !r ; name }
+  let compare x y = CCInt.compare x.id y.id
+  let id x = x.id
+  let name x = x.name
 end
 module StateMap = CCMap.Make(State)
 module StateSet = CCSet.Make(State)
@@ -31,8 +33,8 @@ type t = {
 and transition = State.t Atom.Map.t
 
 let add_state a s = { a with states = StateSet.add s a.states }
-let new_state a =
-  let s = State.gen () in
+let new_state a name =
+  let s = State.gen name in
   add_state a s, s
 
 let add_transition a st (c,st') =
@@ -44,8 +46,8 @@ let add_transition a st (c,st') =
   in
   { a with transitions }
 
-let create () = 
-  let st = State.gen () in
+let create init_name = 
+  let st = State.gen init_name in
   let a =
     let initial = st in
     let states = StateSet.singleton initial in
@@ -98,13 +100,13 @@ module Dot = struct
     val with_node : t -> Node.t -> t
     val with_edge : t -> ?attrs:(string * string) list -> (Node.t * Node.t) -> t
     val with_attrs : t -> (string * string) list -> t
-    val format : Format.formatter -> t -> unit
+    val pp : Format.formatter -> t -> unit
   end =
   struct
     type id = string
     type attr = id * id
 
-    let format_attrs formatter = function
+    let pp_attrs formatter = function
       | [] -> ()
       | attrs ->
         Format.fprintf formatter "[@ @[";
@@ -117,8 +119,8 @@ module Dot = struct
 
       let make ~id = (id, [])
       let with_attrs (id, attrs) attrs' = (id, attrs @ attrs')
-      let format formatter (id, attrs) =
-        Format.fprintf formatter "%a@ %S" format_attrs attrs id
+      let pp formatter (id, attrs) =
+        Format.fprintf formatter "%a@ %S" pp_attrs attrs id
       let id (id, _) = id
     end
     type stmt = Node of Node.t
@@ -135,26 +137,26 @@ module Dot = struct
                      | Some attrs -> (id, stmts @ [Edge (n1, n2, attrs)])
     let with_name (_, s) n = (Some n, s)
 
-    let format_stmt formatter = function
-      | Node node -> Format.fprintf formatter "node@ @[%a@]" Node.format node
+    let pp_stmt formatter = function
+      | Node node -> Format.fprintf formatter "node@ @[%a@]" Node.pp node
       | Edge (n1, n2, attrs) -> Format.fprintf formatter "@[@[%S@ ->@ %S@]@ %a@]"
                                   (Node.id n1)
                                   (Node.id n2)
-                                  format_attrs attrs
+                                  pp_attrs attrs
       | Attr (k, v) -> Format.fprintf formatter "@[%S@ =@ %S@];" k v
 
-    let format formatter (id, stmts) =
+    let pp formatter (id, stmts) =
       let pr fmt = Format.fprintf formatter fmt in
       begin match id with
           None -> pr "@[digraph {@\n"
         | Some id -> pr "@]digraph %S{@[" id
       end;
-      List.iter (pr "@ @ @[%a@]@\n" format_stmt) stmts;
+      List.iter (pr "@ @ @[%a@]@\n" pp_stmt) stmts;
       pr "}@]"
   end
 
   type digraph = Digraph.t
-  let format_digraph = Digraph.format
+  let pp_digraph = Digraph.pp
 
   module CharSet = Set.Make(Char)
 
@@ -172,13 +174,13 @@ module Dot = struct
     let edges = Hashtbl.create 10 in
     let make_node =
       let counter = ref 0 in
-      fun n ->
+      fun s ->
         let name = string_of_int !counter in
         incr counter;
         let node = Digraph.Node.make ~id:name in
-        let shape = if StateSet.mem n dfa.final then "doublecircle"
+        let shape = if StateSet.mem s dfa.final then "doublecircle"
           else "circle" in
-        Digraph.Node.with_attrs node ["shape", shape]
+        Digraph.Node.with_attrs node ["shape", shape; "label", State.name s]
     in
     let add_edge source c target =
       Hashtbl.replace edges (source, target) @@
@@ -226,4 +228,13 @@ module Dot = struct
             Hashtbl.find states target))
       edges
       dg
+
+  let open_digraph dig =
+    let file = Filename.temp_file "dfa_" ".dot" in
+    CCFormat.to_file file "%a@." Digraph.pp dig;
+    let _ = Unix.system @@ Fmt.str "xdot %s" @@ Filename.quote file in
+    ()
+    
 end
+
+let dot dfa = Dot.open_digraph @@ Dot.digraph_of_dfa dfa

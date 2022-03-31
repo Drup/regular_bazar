@@ -74,7 +74,7 @@ let rec deriv = function
 type state = { dfa : Dfa.t ; re2state : Dfa.State.t Regex.Map.t }
 
 let add_state a re =
-  let dfa, v = Dfa.new_state a.dfa in
+  let dfa, v = Dfa.new_state a.dfa (Regex.to_string re) in
   let a = {dfa; re2state = Regex.Map.add re v a.re2state } in
   a, v
 
@@ -98,7 +98,7 @@ and explore a (st, re) =
   a
 
 let make re =
-  let dfa, st = Dfa.create () in
+  let dfa, st = Dfa.create (Regex.to_string re) in
   let a =
     let re2state = Regex.Map.singleton re st in
     { dfa ; re2state }
@@ -117,6 +117,7 @@ let test re =
   let re = Parser.parse re in
   let a = make re in
   Fmt.epr "Automaton:@.%a" Dfa.pp a;
+  Dfa.dot a;
   a
 
 
