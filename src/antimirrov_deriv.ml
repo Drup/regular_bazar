@@ -99,6 +99,7 @@ let rec deriv : Regex.t -> deriv = function
 type state = { fa : Nfa.t ; re2state : Nfa.State.t Regex.Map.t }
 
 let add_state a re =
+  Fmt.epr "New state: %a@." Regex.pp re;
   let fa, v = Nfa.new_state a.fa (Regex.to_string re) in
   let a = {fa; re2state = Regex.Map.add re v a.re2state } in
   a, v
@@ -119,7 +120,12 @@ let rec goto st0 c re a =
 
 and explore a (st, re) =
   let ds = deriv re in
-  let f c res = Regex.SetSet.fold (fun ire -> goto st c (Regex.Inter ire)) res in
+  let f c res =
+    Regex.SetSet.fold
+      (fun ire ->
+         (* We go through list again to ensure normalization *)
+         goto st c (Regex.inter @@ Regex.Set.to_list ire)) res
+  in
   Atom.Map.fold f ds a
 
 let make re =
