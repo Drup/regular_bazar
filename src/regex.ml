@@ -27,7 +27,7 @@ include Internal
 module Map = CCMap.Make(Internal)
 module SetSet = CCSet.Make(Set)
 
-let equal x y = compare x y = 0
+let equal x y = Internal.compare x y = 0
 
 (** Printers *)
 
@@ -35,8 +35,8 @@ let rec pp fmt x = match x with
   | Epsilon -> Fmt.pf fmt "ε"
   | Atom a -> Atom.pp fmt a
   | Concat l -> Fmt.list ~sep:Fmt.nop pp_with_paren fmt l
-  | Alt res -> pp_set ~sep:(Fmt.any "|@,") fmt res
-  | Inter res -> pp_set ~sep:(Fmt.any "&@,") fmt res
+  | Alt res -> Fmt.pf fmt "%a" (pp_set ~sep:(Fmt.any "|@,")) res
+  | Inter res -> Fmt.pf fmt "%a" (pp_set ~sep:(Fmt.any "&@,")) res
   | Rep (0, None, re) -> Fmt.pf fmt "%a*" pp_with_paren re
   | Rep (1, None, re) -> Fmt.pf fmt "%a+" pp_with_paren re
   | Rep (low, None, re) -> Fmt.pf fmt "%a{%i,}" pp_with_paren re low
